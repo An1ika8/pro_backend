@@ -49,23 +49,42 @@ app.post('/api/v1/login', (req, res) => {
       const user = rows[0];
       bcrypt.compare(password, user.password, (err, match) => {
         if (err || !match) return res.status(401).send({ error: 'Invalid credentials' });
+        
   
-        const token = jwt.sign({ userId: user.id, username: user.username }, process.env.JWT_SECRET_KEY);
+        const token = jwt.sign({ userId: user.id, username: user.username }, 'tdghutdfgtwegbhhder', { expiresIn: '1h' });
+        
+        
         res.status(200).send({ token });
       });
     });
 });
 
+// app.post('/add_project', (req, res) => {
+//     const sql = "INSERT INTO project_details (projects_name, intro, owner, status, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?)";
+//     const values = [
+//         req.body.project_name,
+//         req.body.intro,
+//         req.body.owner,
+//         req.body.status,
+//         req.body.start_time,
+//         req.body.end_time
+//     ];
+
+//     db.query(sql, values, (err, result) => {
+//         if (err) {
+//             console.error('Error executing query:', err);
+//             return res.status(500).send(err);
+//         }
+//         res.status(200).send('Project added successfully');
+//     });
+// });
+
 app.post('/add_project', (req, res) => {
-    const sql = "INSERT INTO project_details (projects_name, intro, owner, status, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?)";
-    const values = [
-        req.body.project_name,
-        req.body.intro,
-        req.body.owner,
-        req.body.status,
-        req.body.start_time,
-        req.body.end_time
-    ];
+    const { project_name, intro, owner, status, start_time, end_time } = req.body;
+    const userId = req.userId; // Assume userId is available from the authentication middleware
+
+    const sql = "INSERT INTO project_details (projects_name, intro, owner, status, start_time, end_time, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
+    const values = [project_name, intro, owner, status, start_time, end_time, userId];
 
     db.query(sql, values, (err, result) => {
         if (err) {
@@ -99,36 +118,82 @@ app.get("/get_projects/:projects_name", (req, res) => {
     });
 });
 
+// app.put("/edit_user/:projects_name", (req, res) => {
+//     const sql = "UPDATE project_details SET projects_name=?, intro=?, owner=?, status=?, start_time=?, end_time=? WHERE projects_name=?";
+//     const values = [
+//         req.body.projects_name,
+//         req.body.intro,
+//         req.body.owner,
+//         req.body.status,
+//         req.body.start_time,
+//         req.body.end_time,
+//         req.params.projects_name
+//     ];
+//     db.query(sql, values, (err, result) => {
+//         if (err) {
+//             console.error('Error executing query:', err);
+//             return res.status(500).json({"message" : "Server error"});
+//         }
+//         res.status(200).json(result);
+//     });
+// });
+
+// app.delete("/delete/:projects_name", (req, res) => {
+//     const projects_name = req.params.projects_name;
+//     const sql = "DELETE FROM project_details WHERE projects_name=?";
+//     const values = [projects_name];
+//     db.query(sql, values, (err, result) => {
+//       if (err)
+//         return res.json({ message: "Something unexpected has occured" + err });
+//       return res.json({ success: "Project deleted successfully" });
+//     });
+// });
+
 app.put("/edit_user/:projects_name", (req, res) => {
-    const sql = "UPDATE project_details SET projects_name=?, intro=?, owner=?, status=?, start_time=?, end_time=? WHERE projects_name=?";
-    const values = [
-        req.body.projects_name,
-        req.body.intro,
-        req.body.owner,
-        req.body.status,
-        req.body.start_time,
-        req.body.end_time,
-        req.params.projects_name
-    ];
-    db.query(sql, values, (err, result) => {
-        if (err) {
-            console.error('Error executing query:', err);
-            return res.status(500).json({"message" : "Server error"});
+    const { projects_name, intro, owner, status, start_time, end_time } = req.body;
+    const userId = req.userId; 
+
+    
+    const verifySql = "SELECT * FROM project_details WHERE projects_name = ? AND user_id = ?";
+    db.query(verifySql, [req.params.projects_name, userId], (err, result) => {
+        if (err || result.length === 0) {
+            return res.status(403).send({ error: 'Unauthorized' });
         }
-        res.status(200).json(result);
+
+        
+        const updateSql = "UPDATE project_details SET projects_name=?, intro=?, owner=?, status=?, start_time=?, end_time=? WHERE projects_name=?";
+        const values = [projects_name, intro, owner, status, start_time, end_time, req.params.projects_name];
+        db.query(updateSql, values, (err, result) => {
+            if (err) {
+                console.error('Error executing query:', err);
+                return res.status(500).json({ "message": "Server error" });
+            }
+            res.status(200).json(result);
+        });
     });
 });
 
 app.delete("/delete/:projects_name", (req, res) => {
-    const projects_name = req.params.projects_name;
-    const sql = "DELETE FROM project_details WHERE projects_name=?";
-    const values = [projects_name];
-    db.query(sql, values, (err, result) => {
-      if (err)
-        return res.json({ message: "Something unexpected has occured" + err });
-      return res.json({ success: "Project deleted successfully" });
+    const userId = req.userId; 
+
+    
+    const verifySql = "SELECT * FROM project_details WHERE projects_name = ? AND user_id = ?";
+    db.query(verifySql, [req.params.projects_name, userId], (err, result) => {
+        if (err || result.length === 0) {
+            return res.status(403).send({ error: 'Unauthorized' });
+        }
+
+        
+        const deleteSql = "DELETE FROM project_details WHERE projects_name=?";
+        db.query(deleteSql, [req.params.projects_name], (err, result) => {
+            if (err) {
+                return res.json({ message: "Something unexpected has occurred" + err });
+            }
+            return res.json({ success: "Project deleted successfully" });
+        });
     });
 });
+
 
 app.listen(port, () => {
     console.log(`Server is listening on port ${port}`);
